@@ -8,7 +8,7 @@ It does not move your heavy data or the external Protenix fork. Instead, it keep
 - `code/build_kaggle_native_cache.py`
   - Preprocesses the Kaggle Part 2 CSVs into the cache used for finetuning.
 - `code/kaggle_rna_dataset_comp_native_runtime.py`
-  - The working runtime dataset loader used by training.
+  - The working runtime dataset loader used by training. It reads the precomputed MSA files already listed in the sample manifests and converts them into Protenix model features at runtime.
 - `code/launch_kaggle_native_train.py`
   - Launches the Kaggle Protenix fork with the runtime loader, CCD cache, and zero-worker DataLoader setup.
 - `slurm/run_kaggle_native_prep_h200.sh`
@@ -62,6 +62,9 @@ The finetuning path reads from these linked runtime folders:
 - Output runs: `references/protenix_runs`
 - External fork: `references/Protenix-RNA-Kaggle`
 
+The preprocessed sample manifests already contain paths to precomputed MSA files under `references/dataset/MSA`.
+Training does not re-run MSA search here. The runtime loader reads those existing files and turns them into the `msa` tensors the model consumes.
+
 ## Typical Commands
 
 ### 1. Preprocess the Kaggle CSVs
@@ -96,6 +99,27 @@ This resume recipe does three things to reduce storage pressure:
 
 ## Notes
 
-- Validation is currently disabled in the launcher by default with `PROTENIX_DISABLE_EVAL=1` because the fork's eval path still expects a different batch shape.
+- The current organized launcher supports validation evaluation through a separate validation dataloader wired to the `validation` split.
 - `wandb` logging is supported through `USE_WANDB=true`, `WANDB_PROJECT=...`, and optionally `WANDB_ID=...` and `WANDB_MODE=online|offline`.
 - The runtime loader is copied here from the working version under `/scratch/phys/sin/rna-dataset` so this folder stays understandable and self-contained.
+
+## MSA Crop Issue
+
+When `USE_MSA=true`, the loader reads precomputed RNA MSA files from the sample manifests and converts them into model tensors at runtime.
+
+The failure in job `16742837` happened on long sequences that were cropped to `416` tokens for training. The sequence and coordinates were cropped, but the precomputed RNA MSA file still described the full-length sequence. That meant the MSA featurizer tried to align full-length MSA columns against cropped token columns, which caused an index mismatch inside `tokenize_msa()` and crashed with an out-of-bounds error.
+
+In short:
+
+- short samples: real precomputed MSA works
+- long uncropped MSA file + cropped sequence: column mismatch
+- result: training crashes during MSA tokenization
+
+The current fix is intentionally conservative:
+
+- if a sample is not cropped, keep real MSA enabled
+- if a sample is cropped, disable MSA featurization for that sample only and fall back to the dummy/no-MSA feature path
+
+This avoids the crash while preserving real MSA on all sequences that already fit the crop window. It also keeps validation working: short validation samples still use real MSA, while long cropped validation samples fall back safely instead of crashing.
+
+A fuller future fix would require crop-aware RNA MSA slicing so the precomputed full-length MSA can be trimmed consistently to the same residue window as the cropped sequence.

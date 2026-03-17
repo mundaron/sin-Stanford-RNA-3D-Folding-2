@@ -32,7 +32,13 @@ def get_rna_dataloader(configs: Any) -> DataLoader:
     return get_kaggle_rna_dataloader(configs=configs, cache_root=cache_root, split=split)
 
 
-def get_kaggle_rna_dataloader(configs: Any, cache_root: str, split: str = "train") -> DataLoader:
+def get_kaggle_rna_dataloader(
+    configs: Any,
+    cache_root: str,
+    split: str = "train",
+    shuffle: bool | None = None,
+    collate_mode: str = "list",
+) -> DataLoader:
     crop_size = 420
     data_config = configs.data
     for train_name in data_config.train_sets:
@@ -45,17 +51,25 @@ def get_kaggle_rna_dataloader(configs: Any, cache_root: str, split: str = "train
         use_msa=configs.use_msa,
         crop_size=crop_size,
     )
+    if shuffle is None:
+        shuffle = split == "train"
     sampler = DistributedSampler(
         dataset=dataset,
         num_replicas=DIST_WRAPPER.world_size,
         rank=DIST_WRAPPER.rank,
-        shuffle=True,
+        shuffle=shuffle,
     )
+    if collate_mode == "list":
+        collate_fn = lambda batch: batch
+    elif collate_mode == "single":
+        collate_fn = lambda batch: batch[0]
+    else:
+        raise ValueError(f"Unsupported collate_mode: {collate_mode}")
     return DataLoader(
         dataset=dataset,
         batch_size=1,
         sampler=sampler,
-        collate_fn=lambda batch: batch,
+        collate_fn=collate_fn,
         num_workers=DEFAULT_NUM_WORKERS,
     )
 
@@ -64,6 +78,7 @@ class KaggleRNADatasetCompNative(Dataset):
     def __init__(self, cache_root: str, split: str = "train", use_msa: bool = True, crop_size: int = 420) -> None:
         self.cache_root = Path(cache_root)
         self.split = split
+        self.is_train_split = split == "train"
         self.use_msa = use_msa
         self.crop_size = crop_size
 
@@ -91,9 +106,15 @@ class KaggleRNADatasetCompNative(Dataset):
         residue_mask = label["coordinate_mask_multi"][0]
         seq = single_sample_dict["sequences"][0]["rnaSequence"]["sequence"]
         assert len(seq) == xyz_multi.shape[1]
+        was_cropped = False
 
         if len(seq) > self.crop_size:
-            start = np.random.randint(0, len(seq) - self.crop_size)
+            was_cropped = True
+            max_offset = len(seq) - self.crop_size
+            if self.is_train_split:
+                start = np.random.randint(0, max_offset + 1)
+            else:
+                start = max_offset // 2
             end = start + self.crop_size
             seq = seq[start:end]
             xyz_multi = xyz_multi[:, start:end, :]
@@ -120,6 +141,12 @@ class KaggleRNADatasetCompNative(Dataset):
 
         t1 = time.time()
         entity_to_asym_id = DataPipeline.get_label_entity_id_to_asym_id_int(atom_array)
+        use_sample_msa = self.use_msa and not was_cropped
+        if was_cropped and self.use_msa and not getattr(self, "_warned_cropped_msa_disabled", False):
+            print(
+                "MSA featurization is disabled for cropped sequences because the precomputed RNA MSA files are full-length and do not align with cropped token columns."
+            )
+            self._warned_cropped_msa_disabled = True
         msa_features = (
             InferenceMSAFeaturizer.make_msa_feature(
                 pdb_name=single_sample_dict["name"],
@@ -128,7 +155,7 @@ class KaggleRNADatasetCompNative(Dataset):
                 token_array=token_array,
                 atom_array=atom_array,
             )
-            if self.use_msa
+            if use_sample_msa
             else {}
         )
 
@@ -172,6 +199,7 @@ class KaggleRNADatasetCompNative(Dataset):
     def __getitem__(self, index: int):
         single_sample_dict = json.loads(json.dumps(self.inputs[index]))
         data, _, _ = self.process_one(single_sample_dict)
+        data["basic"] = {"pdb_id": single_sample_dict["name"]}
         data["sample_name"] = single_sample_dict["name"]
         data["sample_index"] = index
         return data

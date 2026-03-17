@@ -107,9 +107,34 @@ def main() -> None:
     configs_data_module.data_configs["ccd_components_rdkit_mol_file"] = str(
         CCD_ROOT / "components.v20240608.cif.rdkit_mol.pkl"
     )
-    load_module_alias("protenix.data.rna_dataset_comp", RUNTIME_LOADER)
+    runtime_module = load_module_alias("protenix.data.rna_dataset_comp", RUNTIME_LOADER)
 
     import runner.train as train_module
+
+    def _init_data(self):
+        self.configs.input_json_path = "./examples/casp16_part.json"
+        self.configs.dump_dir = "./output/"
+        self.configs.num_workers = int(os.environ.get("PROTENIX_KAGGLE_NUM_WORKERS", "0"))
+        self.train_dl = runtime_module.get_kaggle_rna_dataloader(
+            configs=self.configs,
+            cache_root=str(cache_root),
+            split="train",
+            shuffle=True,
+            collate_mode="list",
+        )
+        if os.environ.get("PROTENIX_ENABLE_VALIDATION_EVAL", "1") == "1":
+            validation_dl = runtime_module.get_kaggle_rna_dataloader(
+                configs=self.configs,
+                cache_root=str(cache_root),
+                split="validation",
+                shuffle=False,
+                collate_mode="single",
+            )
+            self.test_dls = {"validation": validation_dl}
+        else:
+            self.test_dls = {}
+
+    train_module.AF3Trainer.init_data = _init_data
 
     if os.environ.get("PROTENIX_DISABLE_EVAL", "1") == "1":
         def _skip_evaluate(self):
@@ -123,6 +148,7 @@ def main() -> None:
     print(f"Using cache root: {cache_root}")
     print(f"Using runtime loader: {RUNTIME_LOADER}")
     print(f"Using CCD cache root: {CCD_ROOT}")
+    print(f"Validation eval enabled: {os.environ.get('PROTENIX_ENABLE_VALIDATION_EVAL', '1') == '1'}")
     print("Forcing DataLoader num_workers=0")
     print(f"wandb enabled: {use_wandb}")
     print(f"Forwarded training args: {train_args}")
