@@ -79,6 +79,12 @@ sbatch --export=ALL,VENV_ACTIVATE=/scratch/phys/sin/rna-dataset/protenix-kaggle-
 sbatch --export=ALL,VENV_ACTIVATE=/scratch/phys/sin/rna-dataset/protenix-kaggle-lite-venv/bin/activate /scratch/work/sethih1/RNA-prediction/sin-Stanford-RNA-3D-Folding-2/kaggle-part-2-solution/slurm/run_kaggle_native_train_h200.sh
 ```
 
+To use a larger training batch while keeping validation single-sample, set `TRAIN_BATCH_SIZE`:
+
+```bash
+sbatch --export=ALL,VENV_ACTIVATE=/scratch/phys/sin/rna-dataset/protenix-kaggle-lite-venv/bin/activate,TRAIN_BATCH_SIZE=4 /scratch/work/sethih1/RNA-prediction/sin-Stanford-RNA-3D-Folding-2/kaggle-part-2-solution/slurm/run_kaggle_native_train_h200.sh
+```
+
 ### 3. Resume safely from the latest non-broken checkpoint
 
 For the interrupted run, the latest usable normal checkpoint is:
@@ -100,6 +106,9 @@ This resume recipe does three things to reduce storage pressure:
 ## Notes
 
 - The current organized launcher supports validation evaluation through a separate validation dataloader wired to the `validation` split.
+- `TRAIN_BATCH_SIZE` controls training loader batch size only. Validation always stays at batch size `1`.
+- Training list batches are processed as sequential micro-batches inside the trainer, so larger `TRAIN_BATCH_SIZE` values use more samples per optimizer step but are not yet equivalent to fully vectorized tensor batching.
+- Validation remains inference-style. For samples with `coordinate_multi`, eval reuses the same prediction for each available ground-truth structure and keeps the best loss instead of requiring training-only `*_topK` outputs.
 - `wandb` logging is supported through `USE_WANDB=true`, `WANDB_PROJECT=...`, and optionally `WANDB_ID=...` and `WANDB_MODE=online|offline`.
 - The runtime loader is copied here from the working version under `/scratch/phys/sin/rna-dataset` so this folder stays understandable and self-contained.
 

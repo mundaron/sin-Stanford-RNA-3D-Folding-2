@@ -24,6 +24,7 @@ DEFAULT_CACHE_ROOT = os.environ.get(
 )
 DEFAULT_SPLIT = os.environ.get("PROTENIX_KAGGLE_SPLIT", "train")
 DEFAULT_NUM_WORKERS = int(os.environ.get("PROTENIX_KAGGLE_NUM_WORKERS", "0"))
+DEFAULT_TRAIN_BATCH_SIZE = int(os.environ.get("PROTENIX_KAGGLE_TRAIN_BATCH_SIZE", "1"))
 
 
 def get_rna_dataloader(configs: Any) -> DataLoader:
@@ -38,6 +39,7 @@ def get_kaggle_rna_dataloader(
     split: str = "train",
     shuffle: bool | None = None,
     collate_mode: str = "list",
+    batch_size: int | None = None,
 ) -> DataLoader:
     crop_size = 420
     data_config = configs.data
@@ -65,9 +67,17 @@ def get_kaggle_rna_dataloader(
         collate_fn = lambda batch: batch[0]
     else:
         raise ValueError(f"Unsupported collate_mode: {collate_mode}")
+    if batch_size is None:
+        batch_size = DEFAULT_TRAIN_BATCH_SIZE if split == "train" else 1
+    if batch_size < 1:
+        raise ValueError(f"batch_size must be >= 1, got {batch_size}")
+    if collate_mode == "single" and batch_size != 1:
+        raise ValueError(
+            "collate_mode='single' requires batch_size=1; validation stays single-sample."
+        )
     return DataLoader(
         dataset=dataset,
-        batch_size=1,
+        batch_size=batch_size,
         sampler=sampler,
         collate_fn=collate_fn,
         num_workers=DEFAULT_NUM_WORKERS,

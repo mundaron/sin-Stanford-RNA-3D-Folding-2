@@ -115,12 +115,14 @@ def main() -> None:
         self.configs.input_json_path = "./examples/casp16_part.json"
         self.configs.dump_dir = "./output/"
         self.configs.num_workers = int(os.environ.get("PROTENIX_KAGGLE_NUM_WORKERS", "0"))
+        train_batch_size = int(os.environ.get("PROTENIX_KAGGLE_TRAIN_BATCH_SIZE", "1"))
         self.train_dl = runtime_module.get_kaggle_rna_dataloader(
             configs=self.configs,
             cache_root=str(cache_root),
             split="train",
             shuffle=True,
             collate_mode="list",
+            batch_size=train_batch_size,
         )
         if os.environ.get("PROTENIX_ENABLE_VALIDATION_EVAL", "1") == "1":
             validation_dl = runtime_module.get_kaggle_rna_dataloader(
@@ -129,6 +131,7 @@ def main() -> None:
                 split="validation",
                 shuffle=False,
                 collate_mode="single",
+                batch_size=1,
             )
             self.test_dls = {"validation": validation_dl}
         else:
@@ -148,6 +151,7 @@ def main() -> None:
     print(f"Using cache root: {cache_root}")
     print(f"Using runtime loader: {RUNTIME_LOADER}")
     print(f"Using CCD cache root: {CCD_ROOT}")
+    print(f"Train batch size: {os.environ.get('PROTENIX_KAGGLE_TRAIN_BATCH_SIZE', '1')}")
     print(f"Validation eval enabled: {os.environ.get('PROTENIX_ENABLE_VALIDATION_EVAL', '1') == '1'}")
     print("Forcing DataLoader num_workers=0")
     print(f"wandb enabled: {use_wandb}")
