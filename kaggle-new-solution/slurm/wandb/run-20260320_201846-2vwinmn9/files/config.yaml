@@ -1,0 +1,656 @@
+_allow_dotted_keys:
+    value: false
+_convert_dict:
+    value: true
+_fields:
+    value:
+        adam: |
+            beta1: 0.9
+            beta2: 0.95
+            lr: 5.0e-05
+            use_adamw: false
+            weight_decay: 1.0e-08
+        af3_lr_scheduler: |
+            decay_every_n_steps: 50000
+            decay_factor: 0.95
+            lr: 5.0e-05
+            warmup_steps: 50
+        atom_permutation: |
+            global_align_wo_symmetric_atom: false
+            permute_by_pocket: true
+            test:
+              diffusion_sample: true
+            train:
+              diffusion_sample: false
+              mini_rollout: true
+        base_dir: /scratch/phys/sin/rna-dataset/protenix_runs
+        blocks_per_ckpt: 1
+        c_atom: 128
+        c_atompair: 16
+        c_s: 384
+        c_s_inputs: 449
+        c_token: 384
+        c_z: 128
+        chain_permutation: |
+            configs:
+              accept_it_as_it_is: false
+              enumerate_all_anchor_pairs: false
+              find_gt_anchor_first: false
+              selection_metric: aligned_rmsd
+              use_center_rmsd: false
+            permute_by_pocket: true
+            test:
+              diffusion_sample: true
+            train:
+              diffusion_sample: false
+              mini_rollout: true
+        checkpoint_interval: 100
+        data: |
+            ccd_components_file: /scratch/phys/sin/rna-dataset/protenix_ccd_cache/components.v20240608.cif
+            ccd_components_rdkit_mol_file: /scratch/phys/sin/rna-dataset/protenix_ccd_cache/components.v20240608.cif.rdkit_mol.pkl
+            epoch_size: 10000
+            msa:
+              enable_prot_msa: true
+              enable_rna_msa: true
+              max_size:
+                test: 16384
+                train: 16384
+              min_size:
+                test: 1
+                train: 1
+              prot_indexing_methods:
+              - sequence
+              prot_msadir_raw_paths:
+              - /home/sethih1/mmcif_msa_template
+              prot_non_pairing_dbs:
+              - pairing-non_pairing
+              prot_pairing_dbs:
+              - pairing
+              prot_seq_or_filename_to_msadir_jsons:
+              - /home/sethih1/common/seq_to_pdb_index.json
+              rna_indexing_methods:
+              - sequence
+              rna_msadir_raw_paths:
+              - ''
+              rna_seq_or_filename_to_msadir_jsons:
+              - ''
+              sample_cutoff:
+                test: 16384
+                train: 16384
+            num_dl_workers: 16
+            obsolete_release_data_csv: /home/sethih1/common/obsolete_release_date.csv
+            pdb_cluster_file: /home/sethih1/common/clusters-by-entity-40.txt
+            posebusters_0925:
+              base_info:
+                bioassembly_dict_dir: /home/sethih1/posebusters_bioassembly
+                find_all_pockets: false
+                find_pocket: true
+                indices_fpath: /home/sethih1/indices/posebusters_indices_mainchain_interface.csv
+                max_n_token: -1
+                mmcif_dir: /home/sethih1/posebusters_mmcif
+                pdb_list: ''
+              constraint:
+                enable: false
+                fix_seed: false
+              cropping_configs:
+                crop_size: -1
+                method_weights:
+                - 0.0
+                - 0.0
+                - 1.0
+              lig_atom_rename: false
+              sampler_configs:
+                sampler_type: uniform
+              shuffle_mols: false
+              shuffle_sym_ids: false
+            recentPDB_1536_sample384_0925:
+              base_info:
+                bioassembly_dict_dir: /home/sethih1/recentPDB_bioassembly
+                find_eval_chain_interface: true
+                group_by_pdb_id: true
+                indices_fpath: /home/sethih1/indices/recentPDB_low_homology_maxtoken1536.csv
+                max_n_token: -1
+                mmcif_dir: /home/sethih1/mmcif
+                pdb_list: /home/sethih1/indices/recentPDB_low_homology_maxtoken1024_sample384_pdb_id.txt
+                sort_by_n_token: false
+              constraint:
+                enable: false
+                fix_seed: false
+              cropping_configs:
+                crop_size: -1
+                method_weights:
+                - 0.0
+                - 0.0
+                - 1.0
+              lig_atom_rename: false
+              sampler_configs:
+                sampler_type: uniform
+              shuffle_mols: false
+              shuffle_sym_ids: false
+            template:
+              enable_prot_template: true
+              kalign_binary_path: /usr/bin/kalign
+              obsolete_pdbs_path: /home/sethih1/common/obsolete_to_successor.json
+              prot_indexing_methods:
+              - sequence
+              prot_seq_or_filename_to_templatedir_jsons:
+              - /home/sethih1/common/seq_to_pdb_index.json
+              prot_template_cache_dir: ''
+              prot_template_mmcif_dir: /home/sethih1/mmcif
+              prot_template_raw_paths:
+              - /home/sethih1/mmcif_msa_template
+              release_dates_path: /home/sethih1/common/release_date_cache.json
+              template_dropout_rate: 0.0
+            test_ref_pos_augment: true
+            test_sets:
+            - recentPDB_1536_sample384_0925
+            train_ref_pos_augment: true
+            train_sampler:
+              sampler_type: weighted
+              train_sample_weights:
+              - 1.0
+            train_sets:
+            - weightedPDB_before2109_wopb_nometalc_0925
+            weightedPDB_before2109_wopb_nometalc_0925:
+              base_info:
+                bioassembly_dict_dir: /home/sethih1/mmcif_bioassembly
+                exclusion:
+                  mol_1_type:
+                  - ions
+                  mol_2_type:
+                  - ions
+                indices_fpath: /home/sethih1/indices/weightedPDB_indices_before_2021-09-30_wo_posebusters_resolution_below_9.csv.gz
+                max_n_token: -1
+                mmcif_dir: /home/sethih1/mmcif
+                pdb_list: ''
+                random_sample_if_failed: true
+                use_reference_chains_only: false
+              constraint:
+                contact:
+                  distance_type: center_atom
+                  group: complex
+                  max_distance_range:
+                    PL:
+                    - 4
+                    - 10
+                    PP:
+                    - 6
+                    - 30
+                  prob: 0.0
+                  size: 0.3333333333333333
+                contact_atom:
+                  distance_type: atom
+                  feature_type: continuous
+                  group: complex
+                  max_distance_range:
+                    PL:
+                    - 2
+                    - 8
+                    PP:
+                    - 2
+                    - 12
+                  min_distance: -1
+                  prob: 0.0
+                  size: 0.3333333333333333
+                enable: false
+                fix_seed: false
+                pocket:
+                  distance_type: center_atom
+                  group: complex
+                  max_distance_range:
+                    LP:
+                    - 6
+                    - 20
+                    PP:
+                    - 6
+                    - 20
+                  prob: 0.0
+                  size: 0.3333333333333333
+                  spec_binder_chain: false
+                substructure:
+                  coord_noise_scale: 0.05
+                  feature_type: one_hot
+                  mol_type_pairs:
+                    LP: 10
+                    PL: 10
+                    PP: 15
+                  prob: 0.0
+                  ratios:
+                    full:
+                    - 0.0
+                    - 0.5
+                    - 1.0
+                    partial: 0.3
+                  size: 0.8
+                  spec_asym_id: false
+              cropping_configs:
+                crop_size: 416
+                method_weights:
+                - 0.2
+                - 0.4
+                - 0.4
+              lig_atom_rename: false
+              limits: -1
+              sample_weight: 0.5
+              sampler_configs:
+                alpha_dict:
+                  ligand: 1
+                  nuc: 3
+                  prot: 3
+                beta_dict:
+                  chain: 0.5
+                  interface: 1
+                force_recompute_weight: true
+                sampler_type: weighted
+              shuffle_mols: false
+              shuffle_sym_ids: false
+        decay_every_n_steps: 50000
+        deterministic: false
+        deterministic_seed: false
+        diffusion_batch_size: 8
+        diffusion_chunk_size: 4
+        dtype: bf16
+        ema_decay: 0.995
+        ema_mutable_param_keywords:
+            - ""
+        enable_diffusion_shared_vars_cache: false
+        enable_efficient_fusion: false
+        enable_tf32: false
+        esm: |
+            embedding_dim: 2560
+            enable: false
+            model_name: esm2-3b
+        eval_ema_only: false
+        eval_first: false
+        eval_interval: 1000
+        eval_only: false
+        find_unused_parameters: false
+        finetune: |
+            decay_every_n_steps: 50000
+            lr: 0.0018
+            lr_scheduler: cosine_annealing
+            max_steps: 20000
+            min_lr_ratio: 0.1
+            warmup_steps: 1000
+        finetune_params_with_substring:
+            - ""
+        grad_clip_norm: 10
+        hidden_scale_up: false
+        infer_setting: |
+            chunk_size: 256
+            chunk_size_thresholds:
+              '1024': -1
+              '1536': 512
+              '2048': 256
+              '2560': 128
+            dynamic_chunk_size: true
+            lddt_metrics_chunk_size: 1
+            lddt_metrics_sparse_enable: true
+            sample_diffusion_chunk_size: 5
+        inference_noise_scheduler: |
+            rho: 7
+            s_max: 160.0
+            s_min: 0.0004
+            sigma_data: 16.0
+        iters_to_accumulate: 1
+        load_checkpoint_path: /scratch/phys/sin/rna-dataset/protenix_checkpoint/protenix_base_20250630_v1.0.0.pt
+        load_ema_checkpoint_path: ""
+        load_params_only: true
+        load_step_for_scheduler: false
+        load_strict: true
+        log_interval: 1
+        loss: |
+            diffusion:
+              bond:
+                eps: 1.0e-06
+              mse:
+                eps: 1.0e-06
+                weight_dna: 5.0
+                weight_ligand: 10.0
+                weight_mse: 0.3333333333333333
+                weight_rna: 5.0
+              smooth_lddt:
+                eps: 1.0e-06
+            diffusion_bond_chunk_size: 1
+            diffusion_chunk_size_outer: 1
+            diffusion_lddt_chunk_size: 1
+            diffusion_lddt_loss_dense: true
+            diffusion_sparse_loss_enable: true
+            distogram:
+              eps: 1.0e-06
+              max_bin: 21.6875
+              min_bin: 2.3125
+              no_bins: 64
+            pae:
+              eps: 1.0e-06
+              max_bin: 32
+              min_bin: 0
+              no_bins: 64
+            pde:
+              eps: 1.0e-06
+              max_bin: 32
+              min_bin: 0
+              no_bins: 64
+            plddt:
+              eps: 1.0e-06
+              max_bin: 1.0
+              min_bin: 0
+              no_bins: 50
+              normalize: true
+            resolution:
+              max: 4.0
+              min: 0.1
+            resolved:
+              eps: 1.0e-06
+            weight:
+              alpha_bond: 0.0
+              alpha_confidence: 0.0
+              alpha_diffusion: 4.0
+              alpha_distogram: 0.0
+              alpha_except_pae: 1.0
+              alpha_pae: 0.0
+              smooth_lddt: 1.0
+        loss_metrics_sparse_enable: true
+        lr: 5e-05
+        lr_scheduler: af3
+        max_atoms_per_token: 24
+        max_steps: 1000
+        mc_dropout_apply_rate: 0.4
+        mc_dropout_rate: 0.4
+        metrics: |
+            chain_ranker_keys:
+            - chain_ptm
+            - chain_plddt
+            clash:
+              af3_clash_threshold: 1.1
+              vdw_clash_threshold: 0.75
+            complex_ranker_keys:
+            - plddt
+            - gpde
+            - ranking_score
+            interface_ranker_keys:
+            - chain_pair_iptm
+            - chain_pair_iptm_global
+            - chain_pair_plddt
+            lddt:
+              eps: 1.0e-06
+        min_lr_ratio: 0.1
+        model: |
+            N_cycle: 10
+            N_model_seed: 1
+            condition_embedding_drop_rate: 0.0
+            confidence_embedding_drop_rate: 0.0
+            confidence_head:
+              blocks_per_ckpt: 1
+              c_s: 384
+              c_s_inputs: 449
+              c_z: 128
+              distance_bin_end: 52.0
+              distance_bin_start: 3.25
+              distance_bin_step: 1.25
+              hidden_scale_up: false
+              max_atoms_per_token: 24
+              n_blocks: 4
+              pairformer_dropout: 0.0
+              stop_gradient: true
+            constraint_embedder:
+              c_constraint_atom_pair: 16
+              c_constraint_s: 449
+              c_constraint_z: 128
+              contact_atom_embedder:
+                c_z_input: 2
+                enable: false
+              contact_embedder:
+                c_z_input: 2
+                enable: false
+              initialize_method: zero
+              pocket_embedder:
+                c_s_input: 3
+                c_z_input: 1
+                enable: false
+              substructure_embedder:
+                architecture: transformer
+                enable: false
+                hidden_dim: 128
+                n_classes: 4
+                n_layers: 1
+            diffusion_module:
+              atom_decoder:
+                n_blocks: 3
+                n_heads: 4
+              atom_encoder:
+                n_blocks: 3
+                n_heads: 4
+              blocks_per_ckpt: 1
+              c_atom: 128
+              c_atompair: 16
+              c_s: 384
+              c_s_inputs: 449
+              c_token: 768
+              c_z: 128
+              sigma_data: 16.0
+              transformer:
+                n_blocks: 24
+                n_heads: 16
+              use_fine_grained_checkpoint: true
+            distogram_head:
+              c_z: 128
+              no_bins: 64
+            input_embedder:
+              c_atom: 128
+              c_atompair: 16
+              c_token: 384
+            msa_module:
+              blocks_per_ckpt: 1
+              c_m: 64
+              c_s_inputs: 449
+              c_z: 128
+              hidden_scale_up: false
+              msa_chunk_size: 2048
+              msa_dropout: 0.15
+              msa_max_size: 16384
+              n_blocks: 4
+              pair_dropout: 0.25
+            pairformer:
+              blocks_per_ckpt: 1
+              c_s: 384
+              c_z: 128
+              dropout: 0.25
+              hidden_scale_up: false
+              n_blocks: 48
+              n_heads: 16
+            relative_position_encoding:
+              c_z: 128
+              r_max: 32
+              s_max: 2
+            template_embedder:
+              blocks_per_ckpt: 1
+              c: 64
+              c_z: 128
+              dropout: 0.25
+              hidden_scale_up: false
+              n_blocks: 2
+        model_name: protenix_base_default_v1.0.0
+        n_blocks: 48
+        no_bins: 64
+        project: protenix-v1-rna
+        run_name: my_wandb_run
+        sample_diffusion: |
+            N_sample: 5
+            N_sample_mini_rollout: 1
+            N_step: 20
+            N_step_mini_rollout: 20
+            gamma0: 0.8
+            gamma_min: 1.0
+            noise_scale_lambda: 1.003
+            step_scale_eta: 1.5
+        seed: 42
+        sigma_data: 16
+        skip_amp: |
+            confidence_head: false
+            loss: true
+            sample_diffusion: true
+            sample_diffusion_training: true
+        skip_load_optimizer: false
+        skip_load_scheduler: false
+        skip_load_step: false
+        test_lig_atom_rename: false
+        test_max_n_token: -1
+        test_shuffle_mols: false
+        test_shuffle_sym_ids: false
+        train_confidence_only: false
+        train_crop_size: 416
+        train_lig_atom_rename: false
+        train_noise_sampler: |
+            p_mean: -1.2
+            p_std: 1.5
+            sigma_data: 16.0
+        train_shuffle_mols: false
+        train_shuffle_sym_ids: false
+        triangle_attention: cuequivariance
+        triangle_multiplicative: cuequivariance
+        use_wandb: true
+        wandb_id: ""
+        warmup_steps: 50
+_locked:
+    value: false
+_sort_keys:
+    value: true
+_type_safe:
+    value: true
+_wandb:
+    value:
+        cli_version: 0.21.1
+        e:
+            op9z0l6b0ahqkjoiyctd3s6o5nzr4vtm:
+                args:
+                    - --run_name
+                    - my_wandb_run
+                    - --seed
+                    - "42"
+                    - --base_dir
+                    - /scratch/phys/sin/rna-dataset/protenix_runs
+                    - --dtype
+                    - bf16
+                    - --project
+                    - protenix-v1-rna
+                    - --use_wandb
+                    - "true"
+                    - --diffusion_batch_size
+                    - "8"
+                    - --eval_interval
+                    - "1000"
+                    - --log_interval
+                    - "1"
+                    - --checkpoint_interval
+                    - "100"
+                    - --ema_decay
+                    - "0.995"
+                    - --train_crop_size
+                    - "416"
+                    - --max_steps
+                    - "1000"
+                    - --warmup_steps
+                    - "50"
+                    - --lr
+                    - "5e-5"
+                    - --sample_diffusion.N_step
+                    - "20"
+                    - --loss.weight.alpha_confidence
+                    - "0.0"
+                    - --loss.weight.alpha_distogram
+                    - "0.0"
+                    - --loss.weight.alpha_bond
+                    - "0.0"
+                    - --loss.weight.smooth_lddt
+                    - "1.0"
+                    - --load_checkpoint_path
+                    - /scratch/phys/sin/rna-dataset/protenix_checkpoint/protenix_base_20250630_v1.0.0.pt
+                codePath: kaggle-new-solution/code/launch_official_protenix_train.py
+                cpu_count: 40
+                cpu_count_logical: 80
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "270448111616"
+                        used: "4862529536"
+                email: sethih10@gmail.com
+                executable: /scratch/phys/sin/rna-dataset/venv/px-kaggle/bin/python
+                git:
+                    commit: 5a550cc3d140ecc67af0336a89787acf67b1ef57
+                    remote: https://github.com/mundaron/sin-Stanford-RNA-3D-Folding-2.git
+                gpu: Tesla V100-SXM2-16GB
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "17179869184"
+                      name: Tesla V100-SXM2-16GB
+                      uuid: GPU-34b7b378-be40-3976-f1eb-a5b54d46e050
+                host: dgx2.int.triton.aalto.fi
+                memory:
+                    total: "540896227328"
+                os: Linux-5.14.0-570.76.1.el9_6.x86_64-x86_64-with-glibc2.34
+                program: /scratch/work/sethih1/RNA-prediction/sin-Stanford-RNA-3D-Folding-2/kaggle-new-solution/code/launch_official_protenix_train.py
+                python: CPython 3.11.9
+                root: /scratch/work/sethih1/RNA-prediction/sin-Stanford-RNA-3D-Folding-2/kaggle-new-solution/slurm
+                slurm:
+                    cluster_name: triton
+                    conf: /var/spool/slurmd/conf-cache/slurm.conf
+                    cpus_on_node: "16"
+                    cpus_per_task: "16"
+                    export_env: ALL,VENV_ACTIVATE=/scratch/phys/sin/rna-dataset/venv/px-kaggle/bin/activate,PROTENIX_REPO_DIR=/scratch/work/sethih1/RNA-prediction/sin-Stanford-RNA-3D-Folding-2/external/Protenix-v1-official,CACHE_ROOT=/scratch/phys/sin/rna-dataset/preprocessed_data,CCD_ROOT=/scratch/phys/sin/rna-dataset/protenix_ccd_cache,RUN_BASE_DIR=/scratch/phys/sin/rna-dataset/protenix_runs,RUN_NAME=my_wandb_run,CHECKPOINT_PATH=/scratch/phys/sin/rna-dataset/protenix_checkpoint/protenix_base_20250630_v1.0.0.pt,USE_MSA=true,USE_WANDB=true,WANDB_PROJECT=protenix-v1-rna,WANDB_MODE=online,MAX_STEPS=1000,TRAIN_CROP_SIZE=416,EVAL_INTERVAL=1000,CHECKPOINT_INTERVAL=100,LOG_INTERVAL=1,LR=5e-5,SEED=42,EMA_DECAY=0.995,PROTENIX_DISABLE_EVAL=0,PROTENIX_ENABLE_VALIDATION_EVAL=1,LAYERNORM_TYPE=openfold,NUM_WORKERS=0,WANDB_API_KEY=8e4e0db2307a46c329b7d30d5f7ab11a176ba158
+                    get_user_env: "1"
+                    gpus: "1"
+                    gpus_on_node: "1"
+                    gtids: "0"
+                    job_account: aalto_users
+                    job_cpus_per_node: "16"
+                    job_end_time: "1774031577"
+                    job_gid: "3155757"
+                    job_gpus: "1"
+                    job_id: "16780247"
+                    job_name: ptx-v1-rna-ft
+                    job_nodelist: dgx2
+                    job_num_nodes: "1"
+                    job_partition: gpu-debug
+                    job_qos: normal
+                    job_start_time: "1774030677"
+                    job_uid: "3155757"
+                    job_user: sethih1
+                    jobid: "16780247"
+                    localid: "0"
+                    mem_per_node: "122880"
+                    nnodes: "1"
+                    nodeid: "0"
+                    nodelist: dgx2
+                    oom_kill_step: "0"
+                    prio_process: "0"
+                    procid: "0"
+                    submit_dir: /scratch/work/sethih1/RNA-prediction/sin-Stanford-RNA-3D-Folding-2/kaggle-new-solution/slurm
+                    submit_host: login4.triton.aalto.fi
+                    task_pid: "9979"
+                    tasks_per_node: "1"
+                    topology_addr: s0-0.s1-7.dgx2
+                    topology_addr_pattern: switch.switch.node
+                    tres_per_task: cpu=16
+                startedAt: "2026-03-20T18:18:46.587865Z"
+                writerId: op9z0l6b0ahqkjoiyctd3s6o5nzr4vtm
+        m: []
+        python_version: 3.11.9
+        t:
+            "1":
+                - 1
+                - 5
+                - 53
+            "2":
+                - 1
+                - 5
+                - 53
+            "3":
+                - 13
+                - 16
+            "4": 3.11.9
+            "5": 0.21.1
+            "12": 0.21.1
+            "13": linux-x86_64

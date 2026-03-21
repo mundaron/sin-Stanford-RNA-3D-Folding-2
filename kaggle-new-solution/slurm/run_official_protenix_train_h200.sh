@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=ptx-v1-rna-ft
+#SBATCH --partition=gpu-h200-141g-short
+# SBATCH --partition=gpu-debug
+#SBATCH --gpus=1
+#SBATCH -c 16
+#SBATCH --mem=120G
+# SBATCH --time=48:00:00
+#SBATCH --output=/scratch/work/sethih1/RNA-prediction/slurm_logs_rna/ptx_v1_rna_train_%j.out
+#SBATCH --error=/scratch/work/sethih1/RNA-prediction/slurm_logs_rna/ptx_v1_rna_train_%j.err
+
+set -euo pipefail
+
+REPO_ROOT="/scratch/work/sethih1/RNA-prediction"
+SOLUTION_ROOT="${REPO_ROOT}/sin-Stanford-RNA-3D-Folding-2/kaggle-new-solution"
+CODE_DIR="${SOLUTION_ROOT}/code"
+mkdir -p "${REPO_ROOT}/slurm_logs_rna"
+
+VENV_ACTIVATE="${VENV_ACTIVATE:-/scratch/phys/sin/rna-dataset/venv/px-kaggle/bin/activate}"
+if [[ -n "${VENV_ACTIVATE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${VENV_ACTIVATE}"
+fi
+
+PYTHON_BIN="${PYTHON_BIN:-python}"
+PROTENIX_REPO_DIR="${PROTENIX_REPO_DIR:-${REPO_ROOT}/sin-Stanford-RNA-3D-Folding-2/external/Protenix-v1-official}"
+CACHE_ROOT="${CACHE_ROOT:-/scratch/phys/sin/rna-dataset/preprocessed_data}"
+CCD_ROOT="${CCD_ROOT:-/scratch/phys/sin/rna-dataset/protenix_ccd_cache}"
+RUN_BASE_DIR="${RUN_BASE_DIR:-/scratch/phys/sin/rna-dataset/protenix_runs}"
+RUN_NAME="${RUN_NAME:-kaggle_new_solution_ft}"
+CHECKPOINT_SAVE_DIR="${CHECKPOINT_SAVE_DIR:-/scratch/phys/sin/rna-dataset/models}"
+CHECKPOINT_PATH="${CHECKPOINT_PATH:-/scratch/phys/sin/rna-dataset/protenix_checkpoint/protenix_base_20250630_v1.0.0.pt}"
+EMA_CHECKPOINT_PATH="${EMA_CHECKPOINT_PATH:-}"
+USE_MSA="${USE_MSA:-true}"
+USE_WANDB="${USE_WANDB:-false}"
+WANDB_PROJECT="${WANDB_PROJECT:-protenix-v1-rna}"
+WANDB_ID="${WANDB_ID:-}"
+WANDB_MODE="${WANDB_MODE:-online}"
+MAX_STEPS="${MAX_STEPS:-5000}"
+TRAIN_CROP_SIZE="${TRAIN_CROP_SIZE:-416}"
+EVAL_INTERVAL="${EVAL_INTERVAL:-1000}"
+CHECKPOINT_INTERVAL="${CHECKPOINT_INTERVAL:-100}"
+LOG_INTERVAL="${LOG_INTERVAL:-1}"
+LR="${LR:-5e-5}"
+SEED="${SEED:-42}"
+EMA_DECAY="${EMA_DECAY:-0.995}"
+PROTENIX_DISABLE_EVAL="${PROTENIX_DISABLE_EVAL:-0}"
+PROTENIX_ENABLE_VALIDATION_EVAL="${PROTENIX_ENABLE_VALIDATION_EVAL:-1}"
+LAYERNORM_TYPE="${LAYERNORM_TYPE:-openfold}"
+NUM_WORKERS="${NUM_WORKERS:-0}"
+TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE:-32}"
+DIFFUSION_BATCH_SIZE="${DIFFUSION_BATCH_SIZE:-8}"
+
+if [[ -z "${CC:-}" ]]; then
+  if ! [[ -x /usr/bin/gcc || -x /usr/bin/cc ]] && ! command -v gcc >/dev/null 2>&1 && ! command -v cc >/dev/null 2>&1; then
+    if ! type module >/dev/null 2>&1 && [[ -f /etc/profile.d/modules.sh ]]; then
+      # shellcheck disable=SC1091
+      source /etc/profile.d/modules.sh
+    fi
+    if type module >/dev/null 2>&1; then
+      module load triton/2025.1-gcc >/dev/null 2>&1 || true
+      module load gcc/13.3.0 >/dev/null 2>&1 || true
+    fi
+  fi
+
+  if [[ -x /usr/bin/gcc ]]; then
+    CC="/usr/bin/gcc"
+  elif [[ -x /usr/bin/cc ]]; then
+    CC="/usr/bin/cc"
+  elif command -v gcc >/dev/null 2>&1; then
+    CC="$(command -v gcc)"
+  elif command -v cc >/dev/null 2>&1; then
+    CC="$(command -v cc)"
+  fi
+fi
+
+if [[ -z "${CC:-}" ]]; then
+  echo "No C compiler found on the node even after trying triton/2025.1-gcc + gcc/13.3.0. Set CC=/path/to/gcc before launching." >&2
+  exit 1
+fi
+
+export CC
+
+mkdir -p "${RUN_BASE_DIR}"
+if [[ -n "${CHECKPOINT_SAVE_DIR}" ]]; then
+  mkdir -p "${CHECKPOINT_SAVE_DIR}"
+fi
+
+CMD=(
+  "${PYTHON_BIN}"
+  "${CODE_DIR}/launch_official_protenix_train.py"
+  --protenix-repo "${PROTENIX_REPO_DIR}"
+  --cache-root "${CACHE_ROOT}"
+  --ccd-root "${CCD_ROOT}"
+  --
+  --run_name "${RUN_NAME}"
+  --seed "${SEED}"
+  --base_dir "${RUN_BASE_DIR}"
+  --dtype bf16
+  --project "${WANDB_PROJECT}"
+  --use_wandb "${USE_WANDB}"
+  --diffusion_batch_size "${DIFFUSION_BATCH_SIZE}"
+  --eval_interval "${EVAL_INTERVAL}"
+  --log_interval "${LOG_INTERVAL}"
+  --checkpoint_interval "${CHECKPOINT_INTERVAL}"
+  --ema_decay "${EMA_DECAY}"
+  --train_crop_size "${TRAIN_CROP_SIZE}"
+  --max_steps "${MAX_STEPS}"
+  --warmup_steps 50
+  --lr "${LR}"
+  --sample_diffusion.N_step 20
+  --loss.weight.alpha_confidence 0.0
+  --loss.weight.alpha_distogram 0.0
+  --loss.weight.alpha_bond 0.0
+  --loss.weight.smooth_lddt 1.0
+)
+
+if [[ -n "${WANDB_ID}" ]]; then
+  CMD+=(--wandb_id "${WANDB_ID}")
+fi
+
+if [[ -f "${CHECKPOINT_PATH}" ]]; then
+  CMD+=(--load_checkpoint_path "${CHECKPOINT_PATH}")
+else
+  echo "Checkpoint not found at ${CHECKPOINT_PATH}; training will start from scratch."
+fi
+
+if [[ -n "${EMA_CHECKPOINT_PATH}" && -f "${EMA_CHECKPOINT_PATH}" ]]; then
+  CMD+=(--load_ema_checkpoint_path "${EMA_CHECKPOINT_PATH}")
+fi
+
+export PROTENIX_DISABLE_EVAL
+export PROTENIX_ENABLE_VALIDATION_EVAL
+export LAYERNORM_TYPE
+export PROTENIX_USE_MSA="${USE_MSA}"
+export PROTENIX_RNA_NUM_WORKERS="${NUM_WORKERS}"
+export PROTENIX_TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE}"
+if [[ -n "${CHECKPOINT_SAVE_DIR}" ]]; then
+  export PROTENIX_CHECKPOINT_DIR="${CHECKPOINT_SAVE_DIR}"
+fi
+if [[ "${USE_WANDB}" == "true" ]]; then
+  export WANDB_MODE
+fi
+
+echo "Running on host: $(hostname)"
+echo "Job ID: ${SLURM_JOB_ID:-local}"
+echo "Official Protenix repo: ${PROTENIX_REPO_DIR}"
+echo "RNA cache root: ${CACHE_ROOT}"
+echo "CCD root: ${CCD_ROOT}"
+echo "Run base dir: ${RUN_BASE_DIR}"
+echo "Checkpoint save dir: ${CHECKPOINT_SAVE_DIR:-<default under run dir>}"
+echo "Checkpoint path: ${CHECKPOINT_PATH}"
+echo "USE_WANDB: ${USE_WANDB}"
+echo "WANDB_PROJECT: ${WANDB_PROJECT}"
+echo "WANDB_MODE: ${WANDB_MODE}"
+echo "PROTENIX_DISABLE_EVAL: ${PROTENIX_DISABLE_EVAL}"
+echo "PROTENIX_ENABLE_VALIDATION_EVAL: ${PROTENIX_ENABLE_VALIDATION_EVAL}"
+echo "NUM_WORKERS: ${NUM_WORKERS}"
+echo "TRAIN_BATCH_SIZE: ${TRAIN_BATCH_SIZE}"
+echo "DIFFUSION_BATCH_SIZE: ${DIFFUSION_BATCH_SIZE}"
+echo "CC: ${CC}"
+echo "Command: ${CMD[*]}"
+
+"${CMD[@]}"
