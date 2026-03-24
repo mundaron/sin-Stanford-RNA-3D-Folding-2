@@ -1,34 +1,23 @@
 # Model hyperparameters
-learning_rate: 0.002 # The learning rate for the optimizer
-batch_size: 3        # Number of samples per batch
+learning_rate: 0.001  # The learning rate for the optimizer
+batch_size: 2        # Number of samples per batch
 test_batch_size: 8        # Number of samples per batch
-epochs: 1            # Total training epochs
-#optimizer: "ranger"       # Optimization algorithm
-dropout: 0.1     # Dropout regularization rate
+epochs: 40            # Total training epochs
+optimizer: "ranger"       # Optimization algorithm
+dropout: 0.05     # Dropout regularization rate
 weight_decay: 0.0001
-k: 5 #not used
-ninp: 384
-nlayers: 48
-nclass: 10
-ntoken: 6 #AUGC + padding/N token
-nhead: 12
-#use_bpp: False
-use_flip_aug: false
-#bpp_file_folder: "../../input/bpp_files/"
-gradient_accumulation_steps: 1
+k: 9
+ninp: 256
+nlayers: 9
+nclass: 2
+ntoken: 5 #AUGC + padding/N token
+nhead: 8
+use_bpp: False
+bpp_file_folder: "../../input/bpp_files/"
+gradient_accumulation_steps: 2
 use_triangular_attention: false
-pairwise_dimension: 128
-dim_msa: 32
-clip_grad_norm: 1
-max_len: 177
-log_interval: 2000 #save checkpoints every log_interval steps
-previous_model_path: "../../exps/test41_biglr/models/epoch_14/pytorch_model_fsdp.bin"
-use_noise_aug: false
-
-#Data scaling
-use_data_percentage: 1
-use_dirty_data: true # turn off for data scaling and data dropout experiments
-
+pairwise_dimension: 64
+use_grad_checkpoint: true
 
 # Other configurations
 fold: 0
