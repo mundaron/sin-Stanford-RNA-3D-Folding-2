@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 import sys
 import types
+from copy import deepcopy
 from pathlib import Path
 
 import torch
@@ -24,13 +26,18 @@ DEFAULT_CCD_ROOT = Path(
         "/scratch/phys/sin/rna-dataset/protenix_ccd_cache",
     )
 )
+DEFAULT_NATIVE_DATA_ROOT = Path(
+    os.environ.get(
+        "PROTENIX_NATIVE_DATA_ROOT",
+        "/scratch/phys/sin/rna-dataset/protenix_native_kaggle_full_chainfix",
+    )
+)
 RUNTIME_LOADER = Path(
     os.environ.get(
         "PROTENIX_RNA_RUNTIME_LOADER",
         str(Path(__file__).resolve().with_name("kaggle_rna_official_runtime.py")),
     )
 )
-
 
 os.environ.setdefault("LAYERNORM_TYPE", "openfold")
 
@@ -61,6 +68,13 @@ def maybe_stub_wandb(allow_stub: bool) -> None:
         os.environ.setdefault("WANDB_DISABLED", "true")
 
 
+def parse_csv_env(name: str, default: str | None = None) -> list[str]:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        raw_value = default or ""
+    return [item.strip() for item in raw_value.split(",") if item.strip()]
+
+
 def load_module_alias(alias: str, path: Path):
     spec = importlib.util.spec_from_file_location(alias, path)
     if spec is None or spec.loader is None:
@@ -86,6 +100,137 @@ def configure_ccd_paths(ccd_root: Path) -> None:
         ccd.RKDIT_MOL_PKL = rdkit_pkl
     except Exception:
         pass
+
+
+def configure_native_kaggle_data(native_root: Path) -> None:
+    import configs.configs_data as configs_data_module
+
+    metadata_path = native_root / "metadata.json"
+    bioassembly_dir = native_root / "bioassembly"
+    indices_dir = native_root / "indices"
+    mappings_dir = native_root / "mappings"
+    rna_mapping_path = mappings_dir / "rna_seq_to_msadir.json"
+    empty_lookup_path = mappings_dir / "empty_lookup.json"
+    rna_msa_dir = native_root / "rna_msa"
+    train_indices_path = indices_dir / "train_indices.csv"
+    validation_indices_path = indices_dir / "validation_indices.csv"
+
+    required_paths = [
+        metadata_path,
+        bioassembly_dir,
+        rna_mapping_path,
+        rna_msa_dir,
+        train_indices_path,
+    ]
+    missing = [str(path) for path in required_paths if not path.exists()]
+    if missing:
+        raise FileNotFoundError(
+            "Missing native dataset assets:\n" + "\n".join(f"- {path}" for path in missing)
+        )
+
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    raw_structure_root = metadata.get("raw_structure_root", "")
+    if not empty_lookup_path.exists():
+        empty_lookup_path.write_text("{}\n", encoding="utf-8")
+
+    train_name = "kaggle_native_train"
+    validation_name = "kaggle_native_validation"
+    train_sampler_type = os.environ.get("PROTENIX_NATIVE_TRAIN_SAMPLER", "weighted")
+    train_max_n_token = int(os.environ.get("PROTENIX_NATIVE_TRAIN_MAX_N_TOKEN", "768"))
+    train_excluded_mol_groups = parse_csv_env(
+        "PROTENIX_NATIVE_TRAIN_EXCLUDED_MOL_GROUPS",
+        "prot_prot,intra_prot,intra_ligand,ligand_prot,ligand_ligand",
+    )
+    enable_validation = os.environ.get("PROTENIX_ENABLE_VALIDATION_EVAL", "1") == "1"
+    use_msa = os.environ.get("PROTENIX_USE_MSA", "true").lower() == "true"
+    num_workers = int(
+        os.environ.get(
+            "PROTENIX_RNA_NUM_WORKERS",
+            str(configs_data_module.data_configs.get("num_dl_workers", 0)),
+        )
+    )
+
+    train_exclusion = {
+        "mol_1_type": configs_data_module.ListValue(["ions"]),
+        "mol_2_type": configs_data_module.ListValue(["ions"]),
+    }
+    if train_excluded_mol_groups:
+        train_exclusion["mol_type_group"] = configs_data_module.ListValue(
+            train_excluded_mol_groups
+        )
+
+    train_dataset = deepcopy(configs_data_module.default_weighted_pdb_configs)
+    train_dataset["base_info"] = {
+        "mmcif_dir": raw_structure_root,
+        "bioassembly_dict_dir": str(bioassembly_dir),
+        "indices_fpath": str(train_indices_path),
+        "pdb_list": "",
+        "random_sample_if_failed": True,
+        "max_n_token": train_max_n_token,
+        "use_reference_chains_only": False,
+        "exclusion": train_exclusion,
+    }
+    train_dataset["sampler_configs"]["sampler_type"] = train_sampler_type
+    train_dataset["limits"] = int(os.environ.get("PROTENIX_NATIVE_TRAIN_LIMIT", "-1"))
+
+    validation_dataset = deepcopy(configs_data_module.default_test_configs)
+    validation_dataset["base_info"] = {
+        "mmcif_dir": raw_structure_root,
+        "bioassembly_dict_dir": str(bioassembly_dir),
+        "indices_fpath": str(validation_indices_path),
+        "pdb_list": "",
+        "max_n_token": int(os.environ.get("PROTENIX_NATIVE_VAL_MAX_N_TOKEN", "-1")),
+        "sort_by_n_token": False,
+        "group_by_pdb_id": True,
+        "find_eval_chain_interface": True,
+    }
+    validation_dataset["limits"] = int(
+        os.environ.get("PROTENIX_NATIVE_VALIDATION_LIMIT", "-1")
+    )
+
+    configs_data_module.data_configs["num_dl_workers"] = num_workers
+    configs_data_module.data_configs["train_sets"] = configs_data_module.ListValue(
+        [train_name]
+    )
+    configs_data_module.data_configs["train_sampler"] = {
+        "train_sample_weights": configs_data_module.ListValue([1.0]),
+        "sampler_type": train_sampler_type,
+    }
+    configs_data_module.data_configs[train_name] = train_dataset
+    configs_data_module.data_configs["test_sets"] = configs_data_module.ListValue(
+        [validation_name] if enable_validation and validation_indices_path.exists() else []
+    )
+    configs_data_module.data_configs[validation_name] = validation_dataset
+
+    msa_config = deepcopy(configs_data_module.data_configs["msa"])
+    msa_config["enable_prot_msa"] = False
+    msa_config["enable_rna_msa"] = use_msa
+    msa_config["prot_seq_or_filename_to_msadir_jsons"] = configs_data_module.ListValue(
+        [str(empty_lookup_path)]
+    )
+    msa_config["prot_msadir_raw_paths"] = configs_data_module.ListValue(
+        [str(native_root)]
+    )
+    msa_config["prot_indexing_methods"] = configs_data_module.ListValue(["sequence"])
+    msa_config["rna_seq_or_filename_to_msadir_jsons"] = configs_data_module.ListValue(
+        [str(rna_mapping_path)]
+    )
+    msa_config["rna_msadir_raw_paths"] = configs_data_module.ListValue(
+        [str(rna_msa_dir)]
+    )
+    msa_config["rna_indexing_methods"] = configs_data_module.ListValue(["sequence"])
+    configs_data_module.data_configs["msa"] = msa_config
+
+    template_config = deepcopy(configs_data_module.data_configs["template"])
+    template_config["enable_prot_template"] = False
+    template_config["prot_seq_or_filename_to_templatedir_jsons"] = (
+        configs_data_module.ListValue([str(empty_lookup_path)])
+    )
+    template_config["prot_template_raw_paths"] = configs_data_module.ListValue(
+        [str(native_root)]
+    )
+    template_config["prot_indexing_methods"] = configs_data_module.ListValue(["sequence"])
+    configs_data_module.data_configs["template"] = template_config
 
 
 def patch_permutation_for_coarse_rna() -> None:
@@ -318,8 +463,9 @@ def patch_trainer(train_module, runtime_module, cache_root: Path) -> None:
         return total_loss, loss_dict, batch
 
     train_module.AF3Trainer.init_basics = _init_basics
-    train_module.AF3Trainer.init_data = _init_data
-    train_module.AF3Trainer.get_loss = _coarse_rna_get_loss
+    if runtime_module is not None:
+        train_module.AF3Trainer.init_data = _init_data
+        train_module.AF3Trainer.get_loss = _coarse_rna_get_loss
 
     if os.environ.get("PROTENIX_DISABLE_EVAL", "0") == "1":
         def _skip_evaluate(self, mode: str = "eval"):
@@ -331,7 +477,7 @@ def patch_trainer(train_module, runtime_module, cache_root: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Launch official Protenix v1 training with the cached RNA pipeline."
+        description="Launch official Protenix v1 training with Kaggle RNA data."
     )
     parser.add_argument(
         "--protenix-repo",
@@ -345,6 +491,14 @@ def main() -> None:
         "--ccd-root",
         default=os.environ.get("PROTENIX_CCD_CACHE_ROOT", str(DEFAULT_CCD_ROOT)),
     )
+    parser.add_argument(
+        "--data-mode",
+        default=os.environ.get("PROTENIX_DATA_MODE", "coarse"),
+    )
+    parser.add_argument(
+        "--native-data-root",
+        default=os.environ.get("PROTENIX_NATIVE_DATA_ROOT", str(DEFAULT_NATIVE_DATA_ROOT)),
+    )
     args, train_args = parser.parse_known_args()
     if train_args and train_args[0] == "--":
         train_args = train_args[1:]
@@ -352,13 +506,20 @@ def main() -> None:
     repo_dir = Path(args.protenix_repo).expanduser().resolve()
     cache_root = Path(args.cache_root).expanduser().resolve()
     ccd_root = Path(args.ccd_root).expanduser().resolve()
+    native_data_root = Path(args.native_data_root).expanduser().resolve()
+    data_mode = args.data_mode.strip().lower()
+
+    if data_mode not in {"coarse", "native"}:
+        raise ValueError(f"Unsupported data mode: {data_mode}")
     if not repo_dir.exists():
         raise FileNotFoundError(f"Missing official Protenix repo: {repo_dir}")
-    if not cache_root.exists():
+    if data_mode == "coarse" and not cache_root.exists():
         raise FileNotFoundError(f"Missing RNA cache root: {cache_root}")
+    if data_mode == "native" and not native_data_root.exists():
+        raise FileNotFoundError(f"Missing native data root: {native_data_root}")
     if not ccd_root.exists():
         raise FileNotFoundError(f"Missing CCD cache root: {ccd_root}")
-    if not RUNTIME_LOADER.exists():
+    if data_mode == "coarse" and not RUNTIME_LOADER.exists():
         raise FileNotFoundError(f"Missing runtime loader: {RUNTIME_LOADER}")
 
     sys.path.insert(0, str(repo_dir))
@@ -366,24 +527,43 @@ def main() -> None:
     use_wandb = wandb_requested(train_args)
     maybe_stub_wandb(allow_stub=not use_wandb)
     configure_ccd_paths(ccd_root)
-    runtime_module = load_module_alias(
-        "kaggle_new_solution.rna_runtime",
-        RUNTIME_LOADER,
-    )
+
+    runtime_module = None
+    if data_mode == "coarse":
+        runtime_module = load_module_alias(
+            "kaggle_new_solution.rna_runtime",
+            RUNTIME_LOADER,
+        )
+    else:
+        configure_native_kaggle_data(native_data_root)
 
     import runner.train as train_module
 
-    patch_permutation_for_coarse_rna()
-    patch_trainer(train_module=train_module, runtime_module=runtime_module, cache_root=cache_root)
+    if data_mode == "coarse":
+        patch_permutation_for_coarse_rna()
+    patch_trainer(
+        train_module=train_module,
+        runtime_module=runtime_module,
+        cache_root=cache_root,
+    )
 
     sys.argv = [str(repo_dir / "runner" / "train.py"), *train_args]
     print(f"Using official Protenix repo: {repo_dir}")
-    print(f"Using RNA cache root: {cache_root}")
+    print(f"Using data mode: {data_mode}")
+    if data_mode == "coarse":
+        print(f"Using RNA cache root: {cache_root}")
+        print(f"Using runtime loader: {RUNTIME_LOADER}")
+        print("Using coarse RNA supervision: diffusion MSE + smooth-LDDT")
+        print(
+            "Chain permutation is disabled in the adapter; atom permutation remains enabled."
+        )
+    else:
+        print(f"Using native data root: {native_data_root}")
+        print("Using native official data pipeline with the untouched full-structure loss.")
     print(f"Using CCD cache root: {ccd_root}")
-    print(f"Using runtime loader: {RUNTIME_LOADER}")
-    print("Using coarse RNA supervision: diffusion MSE + smooth-LDDT")
-    print("Chain permutation is disabled in the adapter; atom permutation remains enabled.")
-    print(f"Validation eval enabled: {os.environ.get('PROTENIX_ENABLE_VALIDATION_EVAL', '1') == '1'}")
+    print(
+        f"Validation eval enabled: {os.environ.get('PROTENIX_ENABLE_VALIDATION_EVAL', '1') == '1'}"
+    )
     print(f"wandb enabled: {use_wandb}")
     print(f"Forwarded training args: {train_args}")
     train_module.main()

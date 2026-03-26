@@ -1,0 +1,10 @@
+Submitting /scratch/work/sethih1/RNA-prediction/sin-Stanford-RNA-3D-Folding-2/kaggle-new-solution/slurm/run_build_native_protenix_dataset_h200.sh
+PARTITION=batch-milan
+RAW_STRUCTURE_ROOT=/scratch/phys/sin/rna-dataset/PDB_RNA
+MSA_ROOT=/scratch/phys/sin/rna-dataset/MSA
+SPLIT_MANIFEST=/scratch/phys/sin/rna-dataset
+OUT_ROOT=/scratch/phys/sin/rna-dataset/protenix_native_kaggle_full
+LIMIT_PER_SPLIT=0
+NUM_WORKERS=30
+sbatch: slurm_job_submit: Automatically setting partition to: batch-hsw,batch-bdw,batch-csl,batch-skl,batch-milan
+Submitted batch job 16794930
